@@ -1,0 +1,184 @@
+{
+  "name": "AI RECEIPT PARSER",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "AI-PARSER",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4f7b7c80-07ac-4299-9983-e625de2a11d2",
+      "name": "Webhook",
+      "webhookId": "5bcb4a57-86bc-4efc-b392-04dc8b84cb09"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "=json",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "={\n  \"model\": \"openai/gpt-oss-20b\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Kamu ekstraktor data transaksi. Ubah teks jadi JSON dengan format {\\\"items\\\": [{\\\"nama\\\": string, \\\"qty\\\": number, \\\"harga\\\": number|null}], \\\"total\\\": number|null, \\\"payment\\\": string|null}. ATURAN: kalau informasi tidak ada di teks, isi null. JANGAN menebak. Balas JSON saja, tanpa teks lain.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.body.teks }}\"\n    }\n  ],\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "c5a85e8b-b34c-428c-9657-dcbe94494ca4",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "gLToZUJ5sgC0AR2V",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = JSON.parse($input.first().json.choices[0].message.content);\nconst sum = (data.items || []).reduce((s, i) => s + (i.qty || 0) * (i.harga || 0), 0);\nconst total = data.total ?? sum;\nconst valid = data.total == null ? null : data.total === sum;\nreturn [{ json: { ...data, total, totalHitung: sum, valid } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "f531a13a-88db-4b4f-b9ab-6abf831ee847",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "tableId": "transactions",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "=teks_asli",
+              "fieldValue": "={{ $('Webhook').item.json.body.teks }}"
+            },
+            {
+              "fieldId": "=items",
+              "fieldValue": "={{ JSON.stringify($json.items) }}"
+            },
+            {
+              "fieldId": "=total",
+              "fieldValue": "={{ $json.total }}"
+            },
+            {
+              "fieldId": "=payment",
+              "fieldValue": "={{ $json.payment }}"
+            },
+            {
+              "fieldId": "=valid",
+              "fieldValue": "={{ $json.valid }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        672,
+        0
+      ],
+      "id": "b1a3a788-2492-4333-81ef-7a001dc44ead",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "JK89TJgC5fS7Lhvm",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        896,
+        0
+      ],
+      "id": "731a7282-295d-4aae-9a49-13c23463d23c",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "78beba3d-793a-4211-8788-2b5625c33ab1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "930393c69731bf92e6ca8d1e754ec0cd5ed6db1d0cb0f20a42eff29dd2de66de"
+  },
+  "nodeGroups": [],
+  "id": "rWOkZlFDqKipbg0s",
+  "tags": []
+}
